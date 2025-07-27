@@ -1,3 +1,17 @@
+# Project Overview & Fixes 🛠️✨
+
+This repository holds enhanced code for the `h2csmuggler` tool, specifically tailored for the TryHackMe `Http2requestsmuggling` [room](https://tryhackme.com/room/http2requestsmuggling). 🚀
+
+I tackled two main headaches:
+
+1. **`ssl.wrap_socket()` Deprecation:** The original tool used `ssl.wrap_socket()`, which Python 3.12 completely removed! 😬 (See this [Stack Overflow discussion](https://stackoverflow.com/questions/79217608/python-3-12-7-module-ssl-has-no-attribute-wrap-socket)). To keep things running smoothly on my Python **3.14.0rc1** setup, I've updated the code to use the modern `ssl.create_default_context()` approach for robust SSL/TLS socket wrapping. 🐍
+2. **Self-Signed Certificate Woes:** Some lab endpoints threw `ssl.SSLCertVerificationError` due to self-signed certificates. 🚫 While not ideal for production, for this controlled testing environment, I've added error handling to catch these `ssl.SSLError` exceptions. The code now gracefully falls back to an unverified SSL context to bypass certificate validation and get the job done. ✅
+
+These tweaks brought the tool up to speed with modern Python, letting me conquer that TryHackMe challenge! 🎉
+
+<p align="center">
+  <img src="media/Snipaste_2025-07-28_00-24-22.jpg" width=100%>
+</p>
 
 # h2cSmuggler
 

@@ -37,21 +37,68 @@ def handle_response(response_headers, stream_id):
 
 
 def establish_tcp_connection(proxy_url):
-    global MAX_TIMEOUT
-
     port = proxy_url.port or (80 if proxy_url.scheme == "http" else 443)
     connect_args = (proxy_url.hostname, int(port))
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    retSock = sock
     if proxy_url.scheme == "https":
-        retSock = ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_TLS)
+        current_sock = None # Initialize current_sock here
+        try:
+            # First attempt: default SSL context
+            current_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            current_sock.settimeout(MAX_TIMEOUT)
+            current_sock.connect(connect_args)
+            
+            retSock = ssl.create_default_context().wrap_socket(current_sock, server_hostname=proxy_url.hostname)
+            print("SSL connection successful with default context.")
+            return retSock
 
-    retSock.settimeout(MAX_TIMEOUT)
-    retSock.connect(connect_args)
+        except ssl.SSLError as e:
+            print(f"Caught SSL error: {e}")
+            if "CERTIFICATE_VERIFY_FAILED" in str(e):
+                print("Certificate verification failed, attempting with unverified context...")
+                
+                # Close the problematic socket from the first attempt
+                if current_sock:
+                    current_sock.close()
+                
+                # Create a BRAND NEW raw socket for the unverified attempt
+                new_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                new_sock.settimeout(MAX_TIMEOUT)
+                
+                try:
+                    new_sock.connect(connect_args) # Connect the new raw socket
+                    context = ssl._create_unverified_context() 
+                    retSock = context.wrap_socket(new_sock, server_hostname=proxy_url.hostname)
+                    print("SSL connection successful with unverified context.")
+                    return retSock
+                except Exception as inner_e:
+                    print(f"Failed to establish unverified SSL connection: {inner_e}")
+                    if new_sock:
+                        new_sock.close() # Close if the second attempt fails too
+                    return None
+            else:
+                # Other SSL errors not related to certificate verification
+                print("SSL error not related to certificate verification, closing socket.")
+                if current_sock:
+                    current_sock.close()
+                return None
 
-    return retSock
+        except socket.error as e: # Catch general socket errors during initial connect or operations
+            print(f"Socket connection error: {e}")
+            if current_sock:
+                current_sock.close()
+            return None
+            
+    else: # For HTTP connections (non-HTTPS)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(MAX_TIMEOUT)
+        try:
+            sock.connect(connect_args)
+            return sock
+        except socket.error as e:
+            print(f"HTTP connection error: {e}")
+            sock.close()
+            return None
 
 
 def send_initial_request(connection, proxy_url, settings):
